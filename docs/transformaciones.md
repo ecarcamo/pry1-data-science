@@ -31,3 +31,12 @@ Registro compartido de las operaciones de limpieza aplicadas sobre `datos/unido/
 | `direccion` | 253 registros con abreviatura `No / No.` | Se estandariza a `NO.` (regex con límites de palabra, no rompe palabras que la contengan) | 253 | Uniformar el vocabulario de direcciones para que sea comparable/buscable. |
 | `direccion` | Casing: misma decisión que `establecimiento` | Se deja en MAYÚSCULAS (formato ya dominante en el dataset) | 0 registros cambiaron de caja en esta corrida | Consistencia entre columnas de texto del dataset. |
 <!-- fin:direccion -->
+
+<!-- inicio:duplicados -->
+### Duplicados exactos y parciales (duplicados.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| (todas) | Duplicados exactos (17 columnas originales) | Ninguna: se cuentan y documentan, no se eliminan | 0 | El `codigo` ya es único por diseño del sitio del MINEDUC; se confirma que no hay filas 100% idénticas. |
+| `establecimiento` | 4301 pares candidatos a duplicado parcial (similitud 88-99 dentro del mismo departamento+municipio, RapidFuzz `token_sort_ratio`) | Se generan en `datos/interim/duplicados_parciales_revisar.csv` para revisión manual (columna `decision`) | 4301 | No se fusionan ni eliminan automáticamente: nombres muy parecidos suelen ser el mismo centro con varios códigos (jornada/plan distinto), y una fusión automática podría borrar establecimientos reales que solo coinciden en nombre. |
+<!-- fin:duplicados -->
