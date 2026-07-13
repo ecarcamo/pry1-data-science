@@ -20,19 +20,22 @@ Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFI
 
 ```
 .
-├── automatizacion/       # script de web scraping (Selenium) para descargar los datos crudos
-│   └── main.py
+├── automatizacion/
+│   ├── main.py           # menú interactivo: orquesta descarga.py y unir_datos.py
+│   ├── descarga.py       # módulo de descarga (Selenium): un CSV crudo por departamento
+│   └── unir_datos.py     # une todos los CSV crudos en uno solo (sin limpiar ni deduplicar)
 ├── datos/
-│   └── crudos/           # CSV crudos por departamento (generados por el scraper, no se versionan)
+│   ├── crudos/           # CSV crudos por departamento (se versiona)
+│   └── unido/            # CSV unido de todos los departamentos (no se versiona, es reproducible)
 ├── requirements.txt      # dependencias del proyecto
 └── venv/                 # entorno virtual de Python (no se versiona)
 ```
 
 ## Obtención de los datos (web scraping)
 
-Los datos se descargan automáticamente con Selenium desde el buscador del MINEDUC. Por cada uno de los 23 departamentos, el script deja Municipio/Sector/Plan/Modalidad en "TODOS" y el Nivel Escolar en "DIVERSIFICADO", ejecuta la búsqueda y guarda el resultado como un `.csv` en `datos/crudos/`.
+Los datos se descargan automáticamente con Selenium desde el buscador del MINEDUC. Por cada uno de los 23 departamentos, se deja Municipio/Sector/Plan/Modalidad en "TODOS" y el Nivel Escolar en "DIVERSIFICADO", se ejecuta la búsqueda y se guarda el resultado como un `.csv` en `datos/crudos/`.
 
-> **Nota:** el botón "Exportar a Excel" del sitio tiene un bug del lado del servidor (siempre devuelve una página de error de ASP.NET en vez del archivo, sin importar el departamento o filtro elegido). Por eso el script no depende de ese botón: extrae los datos directamente de la tabla de resultados que renderiza la página, lo cual es igual de confiable y entrega el `.csv` que pide el proyecto.
+> **Nota:** el botón "Exportar a Excel" del sitio tiene un bug del lado del servidor (siempre devuelve una página de error de ASP.NET en vez del archivo, sin importar el departamento o filtro elegido). Por eso `descarga.py` no depende de ese botón: extrae los datos directamente de la tabla de resultados que renderiza la página, lo cual es igual de confiable y entrega el `.csv` que pide el proyecto.
 
 ### Requisitos previos
 
@@ -54,14 +57,45 @@ source venv/bin/activate        # Linux / macOS
 pip install -r requirements.txt
 ```
 
-### 3. Ejecutar el scraper
+### 3. Correr el pipeline con el menú interactivo (recomendado)
 
 ```bash
 cd automatizacion
 python main.py
 ```
 
-Esto abre Chrome, recorre los 23 departamentos y deja los archivos en `datos/crudos/`, con el formato de nombre:
+Esto muestra un menú con 4 opciones:
+
+```
+1) Solo descargar la data
+2) Unir la data descargada
+3) Ejecutar pipeline completo (descargar todos + unir)
+4) Salir
+```
+
+- **Opción 1 — Solo descargar:** pregunta si correr Chrome en modo headless, qué departamentos correr (Enter = todos los 23) y cuántos reintentos por departamento, y luego descarga solo eso a `datos/crudos/`.
+- **Opción 2 — Unir la data descargada:** llama a `unir_datos.py` sobre lo que ya haya en `datos/crudos/`. Si la carpeta no existe o está vacía, avisa que hace falta descargar primero (opción 1 o 3) y no hace nada más.
+- **Opción 3 — Pipeline completo:** descarga los 23 departamentos y, si al menos uno tuvo éxito, une automáticamente el resultado.
+- **Opción 4 — Salir.**
+
+### Uso directo de los módulos (sin menú)
+
+`descarga.py` y `unir_datos.py` también se pueden correr por separado, útil para pruebas o para automatizar sin el menú:
+
+```bash
+cd automatizacion
+
+# Descarga
+python descarga.py                        # corre los 23 departamentos
+python descarga.py --headless             # sin ventana de navegador
+python descarga.py --departamentos 16,00  # solo esos departamentos (pruebas)
+python descarga.py --reintentos 3         # reintentos por departamento (por defecto 2)
+
+# Unión (requiere que ya existan CSV en datos/crudos/)
+python unir_datos.py
+```
+
+Los archivos crudos quedan en `datos/crudos/` con el formato de nombre:
 
 ```
 establecimientos_diversificado_<codigo_departamento>_<nombre_departamento>.csv
@@ -69,18 +103,20 @@ establecimientos_diversificado_<codigo_departamento>_<nombre_departamento>.csv
 
 Por ejemplo: `establecimientos_diversificado_16_alta_verapaz.csv`.
 
-### Opciones útiles
-
-| Opción | Descripción |
-|---|---|
-| `--headless` | Corre Chrome sin abrir ventana (recomendado para correr el proceso completo). |
-| `--departamentos 16,00` | Corre solo los departamentos indicados (útil para pruebas). |
-| `--reintentos N` | Cantidad de reintentos por departamento si falla (por defecto 2). |
-
-Ejemplo para correr todo sin interfaz gráfica:
-
-```bash
-python main.py --headless
-```
-
 El progreso se registra en `automatizacion/scraper.log` y también se imprime en consola.
+
+### Unión de los datos crudos
+
+`unir_datos.py` (invocado desde el menú o directamente):
+
+- toma **todos** los archivos `establecimientos_diversificado_*.csv` que haya en `datos/crudos/` (no solo los de la última corrida),
+- valida que todos tengan exactamente las mismas 17 columnas (mismo nombre y orden); si alguno difiere, aborta con un error indicando cuál archivo y qué columnas cambian,
+- los concatena en un único CSV en `datos/unido/establecimientos_diversificado_unido.csv`,
+- verifica que el total de filas del unido sea exactamente la suma de filas de los archivos individuales (si no cuadra, aborta).
+
+Esta unión es **fiel**: no limpia, no normaliza mayúsculas/tildes/teléfonos ni elimina duplicados — eso corresponde a una fase posterior de limpieza sobre este archivo unido. Se agregan únicamente dos columnas derivadas para trazabilidad:
+
+| Columna | Descripción |
+|---|---|
+| `archivo_origen` | Nombre del CSV crudo del que vino cada fila (para rastrear su departamento de origen). |
+| `id_registro` | Entero incremental estable (1..N), asignado después de ordenar y concatenar, para poder referenciar cada fila en fases posteriores sin depender del índice de pandas. |
