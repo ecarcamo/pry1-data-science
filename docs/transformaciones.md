@@ -16,3 +16,18 @@ Registro compartido de las operaciones de limpieza aplicadas sobre `datos/unido/
 | `establecimiento` | Nombres parecidos pero distintos (ej. `AMERICA` vs `AMÉRICA`) | No se autocorrigen — son establecimientos distintos o candidatos a revisar a mano | Ver reporte de duplicados parciales | Corregir automáticamente arriesga fusionar registros que en realidad son centros educativos diferentes. |
 <!-- fin:establecimiento -->
 
+<!-- inicio:direccion -->
+### `direccion` (limpiar_direccion.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `direccion` | 485 registros con espacios múltiples internos | `strip()` + colapsar espacios múltiples a uno solo | 485 | Formato: no cambia el contenido, solo normaliza separadores. |
+| `direccion` | 89 valores vacíos o placeholders no informativos (cadena vacía, `.`, `---`, `S/N`, etc.) | Se marcan como `"NA"` | 89 | No aportan información real de ubicación; inventar una dirección sería peor que dejarla faltante. |
+| `direccion` | 405 registros con abreviatura `AV / AV.` | Se estandariza a `AVENIDA` (regex con límites de palabra, no rompe palabras que la contengan) | 405 | Uniformar el vocabulario de direcciones para que sea comparable/buscable. |
+| `direccion` | 25 registros con abreviatura `COL / COL.` | Se estandariza a `COLONIA` (regex con límites de palabra, no rompe palabras que la contengan) | 25 | Uniformar el vocabulario de direcciones para que sea comparable/buscable. |
+| `direccion` | 11 registros con abreviatura `Z.` | Se estandariza a `ZONA` (regex con límites de palabra, no rompe palabras que la contengan) | 11 | Uniformar el vocabulario de direcciones para que sea comparable/buscable. |
+| `direccion` | 3 registros con abreviatura `BO / BO.` | Se estandariza a `BARRIO` (regex con límites de palabra, no rompe palabras que la contengan) | 3 | Uniformar el vocabulario de direcciones para que sea comparable/buscable. |
+| `direccion` | 23 registros con abreviatura `#` | Se estandariza a `NO.` (regex con límites de palabra, no rompe palabras que la contengan) | 23 | Uniformar el vocabulario de direcciones para que sea comparable/buscable. |
+| `direccion` | 253 registros con abreviatura `No / No.` | Se estandariza a `NO.` (regex con límites de palabra, no rompe palabras que la contengan) | 253 | Uniformar el vocabulario de direcciones para que sea comparable/buscable. |
+| `direccion` | Casing: misma decisión que `establecimiento` | Se deja en MAYÚSCULAS (formato ya dominante en el dataset) | 0 registros cambiaron de caja en esta corrida | Consistencia entre columnas de texto del dataset. |
+<!-- fin:direccion -->
