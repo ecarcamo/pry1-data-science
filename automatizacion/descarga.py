@@ -1,6 +1,7 @@
 """
-Descarga automatizada de establecimientos educativos (Nivel Escolar: DIVERSIFICADO)
-del buscador del MINEDUC: https://www.mineduc.gob.gt/BUSCAESTABLECIMIENTO_GE/
+Módulo de descarga (web scraping) de establecimientos educativos
+(Nivel Escolar: DIVERSIFICADO) del buscador del MINEDUC:
+https://www.mineduc.gob.gt/BUSCAESTABLECIMIENTO_GE/
 
 Por cada departamento del catalogo se deja Municipio/Sector/Plan/Modalidad en "TODOS"
 y se presiona "Buscar Establecimiento". Los resultados se extraen directamente de la
@@ -14,10 +15,17 @@ archivo, sin importar el departamento o el Nivel Escolar elegido (se verificó d
 reproducible). Por eso este script no usa ese botón: en su lugar parsea la tabla de
 resultados ya renderizada en la página, que contiene exactamente los mismos datos.
 
-Uso:
-    python main.py                        # corre los 23 departamentos
-    python main.py --headless             # sin ventana de navegador
-    python main.py --departamentos 16,00  # solo esos codigos (pruebas)
+Este módulo solo descarga; no une los CSV crudos (eso lo hace unir_datos.py, y
+el menú de main.py orquesta ambos pasos).
+
+Uso como script independiente:
+    python descarga.py                        # corre los 23 departamentos
+    python descarga.py --headless             # sin ventana de navegador
+    python descarga.py --departamentos 16,00  # solo esos codigos (pruebas)
+
+También puede importarse y usarse como función:
+    from descarga import ejecutar_descarga
+    exitosos, fallidos = ejecutar_descarga(codigos=None, headless=True, reintentos=2)
 """
 
 from __future__ import annotations
@@ -244,6 +252,50 @@ def procesar_departamento(driver: webdriver.Chrome, codigo: str, nombre: str) ->
     return True
 
 
+def ejecutar_descarga(
+    codigos: list[str] | None = None,
+    headless: bool = False,
+    reintentos: int = 2,
+) -> tuple[list[str], list[str]]:
+    """Descarga los CSV crudos de los departamentos indicados (o todos si es None).
+
+    Devuelve (exitosos, fallidos), cada uno como lista de strings "codigo - nombre".
+    """
+    codigos = codigos if codigos else list(DEPARTAMENTOS.keys())
+
+    driver = build_driver(headless=headless)
+    exitosos: list[str] = []
+    fallidos: list[str] = []
+
+    try:
+        for codigo in codigos:
+            nombre = DEPARTAMENTOS[codigo]
+            log.info("=== Procesando %s - %s ===", codigo, nombre)
+
+            intento = 0
+            ok = False
+            while intento <= reintentos and not ok:
+                intento += 1
+                try:
+                    ok = procesar_departamento(driver, codigo, nombre)
+                except Exception as exc:  # noqa: BLE001
+                    log.error(
+                        "Departamento %s (%s): error en intento %d/%d -> %s",
+                        codigo, nombre, intento, reintentos + 1, exc,
+                    )
+                    time.sleep(2)
+
+            (exitosos if ok else fallidos).append(f"{codigo} - {nombre}")
+    finally:
+        driver.quit()
+
+    log.info("Finalizado. Exitosos: %d, Fallidos/sin resultados: %d", len(exitosos), len(fallidos))
+    if fallidos:
+        log.warning("Departamentos con problemas: %s", ", ".join(fallidos))
+
+    return exitosos, fallidos
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Descarga establecimientos DIVERSIFICADO por departamento (MINEDUC).")
     parser.add_argument("--headless", action="store_true", help="Ejecuta Chrome sin interfaz gráfica.")
@@ -261,34 +313,7 @@ def main() -> None:
         pedidos = {c.strip() for c in args.departamentos.split(",")}
         codigos = [c for c in codigos if c in pedidos]
 
-    driver = build_driver(headless=args.headless)
-    exitosos, fallidos = [], []
-
-    try:
-        for codigo in codigos:
-            nombre = DEPARTAMENTOS[codigo]
-            log.info("=== Procesando %s - %s ===", codigo, nombre)
-
-            intento = 0
-            ok = False
-            while intento <= args.reintentos and not ok:
-                intento += 1
-                try:
-                    ok = procesar_departamento(driver, codigo, nombre)
-                except Exception as exc:  # noqa: BLE001
-                    log.error(
-                        "Departamento %s (%s): error en intento %d/%d -> %s",
-                        codigo, nombre, intento, args.reintentos + 1, exc,
-                    )
-                    time.sleep(2)
-
-            (exitosos if ok else fallidos).append(f"{codigo} - {nombre}")
-    finally:
-        driver.quit()
-
-    log.info("Finalizado. Exitosos: %d, Fallidos/sin resultados: %d", len(exitosos), len(fallidos))
-    if fallidos:
-        log.warning("Departamentos con problemas: %s", ", ".join(fallidos))
+    ejecutar_descarga(codigos=codigos, headless=args.headless, reintentos=args.reintentos)
 
 
 if __name__ == "__main__":
