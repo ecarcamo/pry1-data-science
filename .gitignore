@@ -17,8 +17,15 @@ __pycache__/
 automatizacion/scraper.log
 automatizacion/_descargas_tmp/
 
-# Datos crudos descargados (se regeneran con automatizacion/main.py)
-datos/crudos/*
+# datos/crudos/ SÍ se versiona: es la fuente cruda descargada del sitio del
+# MINEDUC (que puede cambiar con el tiempo), y es la base sobre la que se
+# apoyan el diagnóstico y la limpieza. Queremos que quede fija en el repo.
+#
+# datos/unido/ NO se versiona: es 100% derivado y reproducible (pd.concat
+# determinista) a partir de datos/crudos/ vía automatizacion/unir_datos.py,
+# así que versionarlo sería redundante y con riesgo de quedar desactualizado
+# respecto al código o a los crudos.
+datos/unido/
 
 # Variables de entorno / secretos
 .env
