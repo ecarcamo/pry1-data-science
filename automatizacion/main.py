@@ -2,14 +2,21 @@
 Descarga automatizada de establecimientos educativos (Nivel Escolar: DIVERSIFICADO)
 del buscador del MINEDUC: https://www.mineduc.gob.gt/BUSCAESTABLECIMIENTO_GE/
 
-Por cada departamento del catalogo se deja Municipio/Sector/Plan/Modalidad en "TODOS",
-se presiona "Buscar Establecimiento" y luego "Exportar a Excel". El archivo descargado
-(siempre nombrado "establecimiento.xls" por el sitio) se renombra y se mueve a
-datos/raw/ en la raiz del proyecto, con un nombre que identifica el departamento.
+Por cada departamento del catalogo se deja Municipio/Sector/Plan/Modalidad en "TODOS"
+y se presiona "Buscar Establecimiento". Los resultados se extraen directamente de la
+tabla HTML (id dgResultado) que renderiza el sitio y se guardan como .csv en datos/crudos/,
+con un nombre que identifica el departamento.
+
+Nota: el botón "Exportar a Excel" del sitio (btnExportar) tiene un bug del lado del
+servidor: siempre devuelve una página de error de ASP.NET ("Control 'grvHistorial' of
+type 'GridView' must be placed inside a form tag with runat=server") en lugar del
+archivo, sin importar el departamento o el Nivel Escolar elegido (se verificó de forma
+reproducible). Por eso este script no usa ese botón: en su lugar parsea la tabla de
+resultados ya renderizada en la página, que contiene exactamente los mismos datos.
 
 Uso:
-    python main.py                      # corre los 23 departamentos
-    python main.py --headless           # sin ventana de navegador
+    python main.py                        # corre los 23 departamentos
+    python main.py --headless             # sin ventana de navegador
     python main.py --departamentos 16,00  # solo esos codigos (pruebas)
 """
 
@@ -21,6 +28,8 @@ import time
 import unicodedata
 from pathlib import Path
 
+import pandas as pd
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
@@ -34,6 +43,14 @@ CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
 CHROME_BINARY = "/usr/bin/chromium"
 
 NIVEL_DIVERSIFICADO = "46"
+
+RESULTADOS_TABLE_ID = "_ctl0_ContentPlaceHolder1_dgResultado"
+# La primera columna de la tabla es solo el ícono para "seleccionar" (sin encabezado).
+COLUMNAS = [
+    "codigo", "distrito", "departamento", "municipio", "establecimiento",
+    "direccion", "telefono", "supervisor", "director", "nivel", "sector",
+    "area", "status", "modalidad", "jornada", "plan", "departamental",
+]
 
 DEPARTAMENTOS = {
     "16": "ALTA VERAPAZ",
@@ -62,12 +79,10 @@ DEPARTAMENTOS = {
 }
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DOWNLOAD_DIR = Path(__file__).resolve().parent / "_descargas_tmp"
-RAW_DIR = PROJECT_ROOT / "datos" / "raw"
+CRUDOS_DIR = PROJECT_ROOT / "datos" / "crudos"
 
 ELEMENT_TIMEOUT = 20
 SEARCH_RESULTS_TIMEOUT = 90
-DOWNLOAD_TIMEOUT = 60
 
 logging.basicConfig(
     level=logging.INFO,
@@ -86,8 +101,6 @@ def slugify(text: str) -> str:
 
 
 def build_driver(headless: bool) -> webdriver.Chrome:
-    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
     options = Options()
     options.binary_location = CHROME_BINARY
     if headless:
@@ -95,19 +108,6 @@ def build_driver(headless: bool) -> webdriver.Chrome:
     options.add_argument("--window-size=1366,900")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
-    options.add_argument("--safebrowsing-disable-download-protection")
-    options.add_argument("--disable-features=InsecureDownloadWarnings,DownloadBubble,DownloadBubblePartialViewController")
-    options.add_experimental_option(
-        "prefs",
-        {
-            "download.default_directory": str(DOWNLOAD_DIR),
-            "download.prompt_for_download": False,
-            "download.directory_upgrade": True,
-            "safebrowsing.enabled": False,
-            "safebrowsing.disable_download_protection": True,
-            "profile.default_content_setting_values.automatic_downloads": 1,
-        },
-    )
 
     service = Service(executable_path=CHROMEDRIVER_PATH)
     driver = webdriver.Chrome(service=service, options=options)
@@ -165,45 +165,55 @@ def set_filtros_todos(driver: webdriver.Chrome) -> None:
 def click_buscar(driver: webdriver.Chrome) -> bool:
     """Presiona 'Buscar Establecimiento' y espera resultados.
 
-    Devuelve True si aparece el botón de exportar (hay resultados),
-    False si la búsqueda no arrojó resultados dentro del tiempo de espera.
+    Devuelve True si aparece la tabla de resultados, False si la búsqueda no
+    arrojó resultados dentro del tiempo de espera.
     """
     boton = driver.find_element(By.ID, "_ctl0_ContentPlaceHolder1_IbtnConsultar")
     boton.click()
 
     wait = WebDriverWait(driver, SEARCH_RESULTS_TIMEOUT)
     try:
-        wait.until(EC.presence_of_element_located((By.ID, "_ctl0_ContentPlaceHolder1_btnExportar")))
+        wait.until(EC.presence_of_element_located((By.ID, RESULTADOS_TABLE_ID)))
         return True
     except TimeoutException:
         return False
 
 
-def click_exportar(driver: webdriver.Chrome) -> Path:
-    before = {p.name for p in DOWNLOAD_DIR.glob("*")}
-
-    boton = driver.find_element(By.ID, "_ctl0_ContentPlaceHolder1_btnExportar")
-    boton.click()
-
-    deadline = time.time() + DOWNLOAD_TIMEOUT
-    while time.time() < deadline:
-        current = {p.name for p in DOWNLOAD_DIR.glob("*")}
-        nuevos = current - before
-        nuevos_completos = [
-            n for n in nuevos if not n.endswith(".crdownload") and not n.endswith(".tmp")
-        ]
-        if nuevos_completos:
-            return DOWNLOAD_DIR / nuevos_completos[0]
-        time.sleep(0.5)
-
-    raise TimeoutException("La descarga del Excel no finalizó dentro del tiempo esperado.")
+def hay_paginacion(soup: BeautifulSoup) -> bool:
+    return soup.find(string=lambda s: isinstance(s, str) and "Siguiente" in s) is not None
 
 
-def mover_archivo(descargado: Path, codigo: str, nombre_departamento: str) -> Path:
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    extension = descargado.suffix or ".xls"
-    destino = RAW_DIR / f"establecimientos_diversificado_{codigo}_{slugify(nombre_departamento)}{extension}"
-    descargado.replace(destino)
+def extraer_tabla_resultados(driver: webdriver.Chrome) -> pd.DataFrame:
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+    tabla = soup.find(id=RESULTADOS_TABLE_ID)
+    if tabla is None:
+        return pd.DataFrame(columns=COLUMNAS)
+
+    if hay_paginacion(soup):
+        log.warning(
+            "La tabla de resultados parece tener paginación ('Siguiente'); "
+            "es posible que falten registros de este departamento."
+        )
+
+    filas = tabla.find_all("tr")[1:]  # la primera fila es el encabezado
+    registros = []
+    for fila in filas:
+        celdas = fila.find_all("td")[1:]  # se descarta la columna del ícono "seleccionar"
+        valores = [c.get_text(strip=True).replace("\xa0", "") for c in celdas]
+        if len(valores) != len(COLUMNAS):
+            log.warning("Fila con %d columnas (se esperaban %d); se omite: %s", len(valores), len(COLUMNAS), valores)
+            continue
+        if not any(valores):  # fila espaciadora vacía que a veces agrega el grid
+            continue
+        registros.append(valores)
+
+    return pd.DataFrame(registros, columns=COLUMNAS)
+
+
+def guardar_csv(df: pd.DataFrame, codigo: str, nombre_departamento: str) -> Path:
+    CRUDOS_DIR.mkdir(parents=True, exist_ok=True)
+    destino = CRUDOS_DIR / f"establecimientos_diversificado_{codigo}_{slugify(nombre_departamento)}.csv"
+    df.to_csv(destino, index=False, encoding="utf-8-sig")
     return destino
 
 
@@ -218,12 +228,19 @@ def procesar_departamento(driver: webdriver.Chrome, codigo: str, nombre: str) ->
 
     hay_resultados = click_buscar(driver)
     if not hay_resultados:
-        log.warning("Departamento %s (%s): sin resultados / botón exportar no apareció.", codigo, nombre)
+        log.warning("Departamento %s (%s): sin resultados.", codigo, nombre)
         return False
 
-    descargado = click_exportar(driver)
-    destino = mover_archivo(descargado, codigo, nombre)
-    log.info("Departamento %s (%s): OK -> %s", codigo, nombre, destino.relative_to(PROJECT_ROOT))
+    df = extraer_tabla_resultados(driver)
+    if df.empty:
+        log.warning("Departamento %s (%s): tabla de resultados vacía.", codigo, nombre)
+        return False
+
+    destino = guardar_csv(df, codigo, nombre)
+    log.info(
+        "Departamento %s (%s): OK -> %s (%d registros)",
+        codigo, nombre, destino.relative_to(PROJECT_ROOT), len(df),
+    )
     return True
 
 
@@ -268,8 +285,6 @@ def main() -> None:
             (exitosos if ok else fallidos).append(f"{codigo} - {nombre}")
     finally:
         driver.quit()
-        if DOWNLOAD_DIR.exists() and not any(DOWNLOAD_DIR.iterdir()):
-            DOWNLOAD_DIR.rmdir()
 
     log.info("Finalizado. Exitosos: %d, Fallidos/sin resultados: %d", len(exitosos), len(fallidos))
     if fallidos:
