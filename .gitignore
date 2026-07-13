@@ -1,0 +1,29 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs y archivos temporales del scraper
+automatizacion/scraper.log
+automatizacion/_descargas_tmp/
+
+# Datos crudos descargados (se regeneran con automatizacion/main.py)
+datos/crudos/*
+
+# Variables de entorno / secretos
+.env
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.vscode/
