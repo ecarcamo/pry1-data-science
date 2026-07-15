@@ -27,6 +27,9 @@ automatizacion/_descargas_tmp/
 # respecto al código o a los crudos.
 datos/unido/
 
+# datos/clean/ NO se versiona: derivado 100% reproducible via limpieza/generar_limpio.py
+datos/clean/
+
 # Variables de entorno / secretos
 .env
 
