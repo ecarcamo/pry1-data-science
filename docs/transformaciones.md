@@ -40,3 +40,44 @@ Registro compartido de las operaciones de limpieza aplicadas sobre `datos/unido/
 | (todas) | Duplicados exactos (17 columnas originales) | Ninguna: se cuentan y documentan, no se eliminan | 0 | El `codigo` ya es único por diseño del sitio del MINEDUC; se confirma que no hay filas 100% idénticas. |
 | `establecimiento` | 4301 pares candidatos a duplicado parcial (similitud 88-99 dentro del mismo departamento+municipio, RapidFuzz `token_sort_ratio`) | Se generan en `datos/interim/duplicados_parciales_revisar.csv` para revisión manual (columna `decision`) | 4301 | No se fusionan ni eliminan automáticamente: nombres muy parecidos suelen ser el mismo centro con varios códigos (jornada/plan distinto), y una fusión automática podría borrar establecimientos reales que solo coinciden en nombre. |
 <!-- fin:duplicados -->
+
+<!-- inicio:departamento -->
+### `departamento` (limpiar_departamento.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `departamento` | CIUDAD CAPITAL (código 00) separado de GUATEMALA (código 01) en la fuente MINEDUC | Se unifica en `GUATEMALA` (catálogo oficial 22 deptos); original preservado en `departamento_raw` | 2161 registros fusionados | CIUDAD CAPITAL no es un departamento distinto en el INE; la distinción es un artefacto del selector de descarga. Decisión documentada en docs/plan_limpieza.md. |
+| `departamento` | 2025 registros sin tildes (SACATEPEQUEZ, PETEN, SOLOLA, etc.) | Normalización a forma canónica con tildes correctas en MAYÚSCULAS (comparación sin tildes, valor guardado con tildes) | 2025 | Fidelidad al catálogo oficial del INE. CASING: MAYÚSCULAS del proyecto. |
+| `departamento` | 0 registros no reconocidos en catálogo | Se marcan con prefijo `REVISAR:` (no se borran) | 0 | Sin información suficiente para corregir automáticamente; requieren revisión manual. |
+| `departamento` | 11867 registros — casing 100% MAYÚSCULAS verificado | Se aplica `.upper()` de forma defensiva | 0 cambios de caja | Convención del proyecto: MAYÚSCULAS con tildes correctas. |
+<!-- fin:departamento -->
+
+<!-- inicio:municipio -->
+### `municipio` (limpiar_municipio.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `municipio` | 11867 registros validados contra catálogo oficial (~340 municipios) | Match exacto sin tildes contra catálogo por departamento | 11858 correctos | Catálogo oficial INE. Comparación normalizada (sin tildes/mayúsculas); valor canónico guardado con tildes y MAYÚSCULAS. |
+| `municipio` | 1 registros con typos (nombre casi correcto) | Corrección con RapidFuzz `token_sort_ratio ≥ 90` dentro del mismo departamento; original en `municipio_raw` | 1 | Umbral conservador para minimizar correcciones incorrectas. Cada corrección es auditable via municipio_raw. |
+| `municipio` | 8 registros sin match suficiente en catálogo | Se marcan con prefijo `REVISAR:` (no se borran); exportados a `datos/interim/municipios_fuera_catalogo.csv` | 8 | Sin información suficiente para corregir automáticamente. |
+<!-- fin:municipio -->
+
+<!-- inicio:codigo -->
+### `codigo` (limpiar_codigo.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `codigo` | Verificación de patrón `##-##-####-##` sobre 11867 registros | Assert de patrón; valores inválidos marcados con `REVISAR:` | 0 inválidos detectados | Ceros a la izquierda requieren tipo str; nunca convertir a int/float. |
+| `codigo` | Unicidad: 11867 valores únicos esperados = 11867 filas | Verificación `nunique() == len(df)` | 0 duplicados | Ya verificado por unir_datos.py; se confirma aquí. |
+| `codigo` | Espacios al inicio/fin | `str.strip()` defensivo | 0 detectados | Normalización formato. |
+<!-- fin:codigo -->
+
+<!-- inicio:distrito_departamental_nivel -->
+### `distrito`, `departamental`, `nivel` (limpiar_distrito_departamental_nivel.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `distrito` | 532 valores vacíos | Se marcan como `"NA"`. Strip defensivo. | 532 | Sin catálogo público de distritos escolares MINEDUC disponible; solo normalización de formato. |
+| `departamental` | Posibles variantes de escritura | Strip + NFC + MAYÚSCULAS con tildes correctas | 0 cambios de caja detectados | 26 valores únicos observados (Guatemala subdividida en zonas administrativas: Norte/Sur/Oriente/Occidente). |
+| `nivel` | Verificación de dominio | Assert `nivel == 'DIVERSIFICADO'` para 11867 registros | 0 anomalías — ✓ solo DIVERSIFICADO | Dataset filtrado por nivel DIVERSIFICADO en la descarga; se confirma aquí. |
+<!-- fin:distrito_departamental_nivel -->
