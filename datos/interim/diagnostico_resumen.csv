@@ -1,0 +1,20 @@
+﻿variable,faltantes_n,faltantes_%,n_unicos,notas
+codigo,0,0.0,11867,0 códigos fuera de patrón ##-##-####-##.
+distrito,532,4.48,1683,Formato variable; normalizar.
+departamento,0,0.0,23,Fuente separa CIUDAD CAPITAL (00) y GUATEMALA (01); decisión de unificación pendiente.
+municipio,0,0.0,352,Validar contra catálogo oficial (~340 municipios); posibles typos.
+establecimiento,5,0.04,6668,
+direccion,81,0.68,7528,
+telefono,946,7.97,6571,23 registros sospechosos (letras o pocos dígitos).
+supervisor,535,4.51,1287,
+director,1791,15.09,5561,
+nivel,0,0.0,1,Verificar que solo exista DIVERSIFICADO.
+sector,0,0.0,4,
+area,0,0.0,3,
+status,0,0.0,5,
+modalidad,0,0.0,2,
+jornada,0,0.0,6,
+plan,0,0.0,13,
+departamental,0,0.0,26,Verificar consistencia con departamento.
+archivo_origen,0,0.0,23,
+id_registro,0,0.0,11867,

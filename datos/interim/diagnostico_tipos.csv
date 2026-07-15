@@ -1,0 +1,20 @@
+﻿columna,tipo_actual,tipo_esperado
+codigo,str,texto (ceros a la izquierda → no convertir a int)
+distrito,str,texto
+departamento,str,categórico texto
+municipio,str,categórico texto
+establecimiento,str,texto
+direccion,str,texto
+telefono,str,texto (puede tener guiones/extensiones)
+supervisor,str,texto
+director,str,texto
+nivel,str,categórico texto (esperado: solo DIVERSIFICADO)
+sector,str,categórico texto
+area,str,categórico texto
+status,str,categórico texto
+modalidad,str,categórico texto
+jornada,str,categórico texto
+plan,str,categórico texto
+departamental,str,texto
+archivo_origen,str,texto (trazabilidad)
+id_registro,str,entero (trazabilidad)
