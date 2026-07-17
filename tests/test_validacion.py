@@ -16,6 +16,7 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LIMPIO_CSV = PROJECT_ROOT / "datos" / "clean" / "establecimientos_diversificado_limpio.csv"
 PATRON_CODIGO = re.compile(r"^\d{2}-\d{2}-\d{4}-\d{2}$")
+PATRON_TELEFONO = re.compile(r"^\d{4}-\d{4}$")
 
 
 @pytest.fixture(scope="module")
@@ -112,3 +113,46 @@ def test_sin_categorias_duplicadas_por_casing(df):
         if len(normalizados) != len(set(normalizados)):
             problemas[col] = [v for v in vals if normalizados.count(v.upper()) > 1]
     assert not problemas, f"Categorías duplicadas por casing: {problemas}"
+
+
+def test_telefono_formato(df):
+    """Cada telefono debe cumplir ####-#### o ser 'NA'."""
+    validos = df["telefono"].str.match(PATRON_TELEFONO) | (df["telefono"] == "NA")
+    n_invalidos = int((~validos).sum())
+    assert n_invalidos == 0, f"{n_invalidos} teléfonos con formato distinto de ####-#### o NA."
+
+
+def test_telefono_adicionales_formato(df):
+    """telefono_adicionales debe ser 'NA' o números ####-#### separados por '; '."""
+    def _ok(v: str) -> bool:
+        if v == "NA":
+            return True
+        return all(PATRON_TELEFONO.match(p) for p in v.split("; "))
+
+    invalidos = df.loc[~df["telefono_adicionales"].map(_ok), "telefono_adicionales"].unique()
+    assert len(invalidos) == 0, f"telefono_adicionales con formato inesperado: {invalidos.tolist()}"
+
+
+def test_categoricas_en_dominio(df):
+    """Cada categórica debe estar en su set canónico o marcada REVISAR:."""
+    from limpieza.limpiar_categoricas import CATEGORIAS_CANONICAS
+
+    fuera = {}
+    for col, canonicos in CATEGORIAS_CANONICAS.items():
+        validos = canonicos | {v for v in df[col].unique() if v.startswith("REVISAR:")}
+        no_reconocidos = [v for v in df[col].unique() if v not in validos]
+        if no_reconocidos:
+            fuera[col] = no_reconocidos
+    assert not fuera, f"Categorías fuera de dominio: {fuera}"
+
+
+def test_personas_normalizadas(df):
+    """director/supervisor: sin espacios dobles, en MAYÚSCULAS, no-informativos = NA."""
+    problemas = {}
+    for col in ("director", "supervisor"):
+        dobles = int(df[col].str.contains("  ", regex=False).sum())
+        no_mayus = int((df[col] != df[col].str.upper()).sum())
+        placeholders = int(df[col].isin(["-", ".", "--", "SIN DATO", "XXX", ""]).sum())
+        if dobles or no_mayus or placeholders:
+            problemas[col] = {"espacios_dobles": dobles, "no_mayusculas": no_mayus, "placeholders": placeholders}
+    assert not problemas, f"Problemas de normalización en personas: {problemas}"

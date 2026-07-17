@@ -53,20 +53,16 @@ def _aplicar_limpiezas(df: pd.DataFrame) -> pd.DataFrame:
     df = clean_codigo(df)
     df = clean_distrito_departamental_nivel(df)
 
-    # --- Hugo (importar solo si existen) ---
-    try:
-        from limpieza.limpiar_telefono import clean_telefono  # type: ignore[import]
-        print("Aplicando limpiezas de Hugo (telefono)...")
-        df = clean_telefono(df)
-    except ImportError:
-        print("⚠  limpieza/limpiar_telefono.py no encontrado — se omite (pendiente Hugo).")
+    # --- Hugo ---
+    from limpieza.limpiar_telefono import clean_telefono
+    from limpieza.limpiar_personas import clean_director, clean_supervisor
+    from limpieza.limpiar_categoricas import clean_categoricas
 
-    try:
-        from limpieza.limpiar_sector_area import clean_sector_area  # type: ignore[import]
-        print("Aplicando limpiezas de Hugo (sector/area)...")
-        df = clean_sector_area(df)
-    except ImportError:
-        pass  # silencioso si no existe aún
+    print("Aplicando limpiezas de Hugo (telefono, personas, categóricas)...")
+    df = clean_telefono(df)
+    df = clean_director(df)
+    df = clean_supervisor(df)
+    df = clean_categoricas(df)
 
     # Reporte de duplicados parciales
     print("Generando reporte de duplicados...")
