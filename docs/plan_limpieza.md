@@ -121,3 +121,80 @@ clean_distrito_departamental_nivel(df)  # normaliza + assert nivel
 ```
 
 Cada función es pura: recibe el DataFrame, devuelve una copia con `<var>_raw` + `<var>` limpiada. Solo toca sus columnas.
+
+---
+---
+
+# Plan de limpieza — Contacto, personas y categóricas (Hugo)
+
+**Autor:** Hugo
+**Variables:** `telefono`, `director`, `supervisor`, `sector`, `area`, `status`, `modalidad`, `jornada`, `plan`
+**Fuente:** `datos/unido/establecimientos_diversificado_unido.csv` (11,867 × 19)
+
+---
+
+## 7. `telefono`
+
+### (a) Problema detectado
+- **946 registros vacíos** (7.97%).
+- Formato heterogéneo: en su mayoría 8 dígitos pelados, pero hay valores con más dígitos (14, 15, 16, 21, 24) que corresponden a **varios números pegados** o con separadores (`,`, `/`, ` Y `).
+- **9 registros con letras** y ~50 con menos de 8 dígitos (2 a 7): teléfonos incompletos o inválidos.
+
+### (b) Regla de corrección y justificación
+1. Preservar el original en `telefono_raw`.
+2. Separar múltiples números por `/ , ; Y/E` y **des-concatenar** secuencias de dígitos cuyo largo sea múltiplo de 8 (ej. 16 dígitos = dos números).
+3. Validar **8 dígitos** (longitud oficial de teléfonos en Guatemala). Un teléfono es válido solo si al quitar lo no-numérico quedan exactamente 8 dígitos.
+4. Formato consistente `####-####` (convención guatemalteca de 4-4) para todos los válidos.
+5. El primer número válido va en `telefono`; los demás en la variable derivada `telefono_adicionales` (`; ` como separador, `NA` si no hay).
+6. Vacíos, con letras o con largo distinto de 8 → `"NA"` (no se borra la fila).
+
+### (c) Riesgos
+- Al quedarnos con el primer número como principal podríamos relegar el "principal real" a `telefono_adicionales`; se mitiga conservando todos y el `telefono_raw`.
+- Números de 8 dígitos que en realidad sean erróneos no se detectan (no hay catálogo de teléfonos); solo se valida forma, no existencia.
+
+---
+
+## 8. `director` y `supervisor`
+
+### (a) Problema detectado
+- Muchos faltantes: `director` **1,733 vacíos** + placeholders (`-`, `--`, `.`, `SIN DATO`, `XXX`, etc., ~410); `supervisor` **535 vacíos**.
+- `director` con **868 registros con espacios múltiples internos** y `supervisor` con **98**.
+- Riesgo de caracteres invisibles (`\u00a0`, zero-width) aunque no se detectaron en esta descarga. Casing ya 100% MAYÚSCULAS.
+
+### (b) Regla de corrección y justificación
+1. Preservar el original en `director_raw` / `supervisor_raw`.
+2. Quitar invisibles + caracteres de control (categorías Unicode `Cc`/`Cf`), NFC, `strip`, colapsar espacios múltiples.
+3. **MAYÚSCULAS** (decisión del proyecto), **sin cambiar las letras del nombre** (se normaliza formato, no ortografía): son nombres propios de personas reales.
+4. Valores no informativos (vacío, solo puntuación, `SIN DATO`, `XXX`, `N/A`, `NULL`, etc.) → `"NA"`.
+
+### (c) Riesgos
+- Marcar como `NA` un placeholder que fuera un nombre real es improbable (la lista de placeholders es explícita y conservadora).
+- No se corrigen typos de nombres propios a propósito: conservar la ortografía real evita inventar identidades.
+
+---
+
+## 9. Categóricas: `sector`, `area`, `status`, `modalidad`, `jornada`, `plan`
+
+### (a) Problema detectado
+- `value_counts()` sobre las 6 columnas muestra sets ya consistentes y en MAYÚSCULAS: `sector`(4), `area`(3, incluye `SIN ESPECIFICAR`), `status`(5), `modalidad`(2, `MONOLINGUE`/`BILINGUE` sin diéresis, tal como la fuente), `jornada`(6), `plan`(13).
+- No se observan variantes de casing ni espacios sobrantes en esta descarga, pero es el punto donde suelen aparecer (caso `Guatemala`/`GUATEMALA` de la rúbrica aplicado a categóricas).
+
+### (b) Regla de corrección y justificación
+1. Normalizar formato: NFC, quitar control chars, colapsar espacios, `strip`, MAYÚSCULAS.
+2. Aplicar un **diccionario de mapeo explícito** `{"variante": "CANONICO"}` por columna (ej. `DIARIO (REGULAR)` → `DIARIO(REGULAR)`, `MONOLINGÜE` → `MONOLINGUE`). Sirve para unificar diferencias de escritura y como guardia documentada para futuras descargas.
+3. Validar contra el set canónico de cada columna; cualquier valor fuera → prefijo `REVISAR:` (no se borra).
+4. El tipo analítico natural es `category`; se documenta en el Libro de Códigos (el CSV limpio se mantiene como texto para no perder el tipo al serializar y para que el pipeline de validación opere sobre str).
+
+### (c) Riesgos
+- Un mapeo demasiado agresivo podría fusionar categorías realmente distintas; por eso el diccionario es explícito y auditable, y las categorías de `plan` (que parecen similares, ej. las variantes de `SEMIPRESENCIAL`) se conservan como valores distintos.
+
+---
+
+## Orden de aplicación (Hugo, dentro de `generar_limpio.py`)
+
+```
+clean_telefono(df)      # separa múltiples + valida 8 dígitos + formato ####-#### + telefono_adicionales
+clean_director(df)      # normaliza formato, MAYÚSCULAS, NA para no informativos
+clean_supervisor(df)    # idem director
+clean_categoricas(df)   # normaliza + mapeo canónico + REVISAR: para fuera de dominio
+```

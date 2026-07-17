@@ -81,3 +81,41 @@ Registro compartido de las operaciones de limpieza aplicadas sobre `datos/unido/
 | `departamental` | Posibles variantes de escritura | Strip + NFC + MAYÚSCULAS con tildes correctas | 0 cambios de caja detectados | 26 valores únicos observados (Guatemala subdividida en zonas administrativas: Norte/Sur/Oriente/Occidente). |
 | `nivel` | Verificación de dominio | Assert `nivel == 'DIVERSIFICADO'` para 11867 registros | 0 anomalías — ✓ solo DIVERSIFICADO | Dataset filtrado por nivel DIVERSIFICADO en la descarga; se confirma aquí. |
 <!-- fin:distrito_departamental_nivel -->
+
+<!-- inicio:telefono -->
+### `telefono` (limpiar_telefono.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `telefono` | 946 valores vacíos | Se marcan como `"NA"` | 946 | No se puede inferir un teléfono desde otras columnas. |
+| `telefono` | Formato heterogéneo (dígitos pelados, con guiones/espacios) | Se dejan solo dígitos y se aplica formato consistente `####-####` (convención de 8 dígitos de Guatemala) | 10794 números válidos formateados | Formato uniforme y comparable para todos los registros. |
+| `telefono` | Celdas con varios números (separados por `/ , ; Y/E` o dígitos concatenados en múltiplos de 8) | Se conserva el primero en `telefono` y el resto en la columna derivada `telefono_adicionales` | 119 registros con números adicionales | No se pierde información; se mantiene un valor principal atómico por registro. |
+| `telefono` | 9 con letras y otros con menos/otros largos de dígitos (no 8) | Se consideran inválidos y se marcan `"NA"` (no se borra la fila; el original queda en `telefono_raw`) | 127 inválidos no vacíos | Un teléfono guatemalteco válido tiene exactamente 8 dígitos. |
+| `telefono_adicionales` | Variable derivada | Números de 8 dígitos extra de celdas con múltiples teléfonos, formateados `####-####` y unidos por `; ` (`NA` si no hay) | 119 | Preserva los teléfonos secundarios sin romper la atomicidad de `telefono`. |
+<!-- fin:telefono -->
+
+<!-- inicio:personas -->
+### `director`, `supervisor` (limpiar_personas.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `director` | 868 registros con espacios múltiples internos | `strip()` + colapsar espacios múltiples a uno solo | 868 | Formato: no cambia las letras del nombre, solo normaliza separadores. |
+| `director` | 1733 vacíos y 410 placeholders no informativos (`-`, `.`, `SIN DATO`, `XXX`, etc.) | Se marcan como `"NA"` | 2143 | No aportan un nombre real; el original queda en la columna `_raw`. |
+| `director` | Casing y caracteres invisibles (`\u00a0`, zero-width) | Se quitan invisibles + NFC + MAYÚSCULAS (decisión del proyecto), sin cambiar las letras del nombre | 0 cambios de caja (ya venía en MAYÚSCULAS) | Consistencia con el resto de columnas de texto; se conserva la ortografía real del nombre. |
+| `supervisor` | 98 registros con espacios múltiples internos | `strip()` + colapsar espacios múltiples a uno solo | 98 | Formato: no cambia las letras del nombre, solo normaliza separadores. |
+| `supervisor` | 535 vacíos y 0 placeholders no informativos (`-`, `.`, `SIN DATO`, `XXX`, etc.) | Se marcan como `"NA"` | 535 | No aportan un nombre real; el original queda en la columna `_raw`. |
+| `supervisor` | Casing y caracteres invisibles (`\u00a0`, zero-width) | Se quitan invisibles + NFC + MAYÚSCULAS (decisión del proyecto), sin cambiar las letras del nombre | 0 cambios de caja (ya venía en MAYÚSCULAS) | Consistencia con el resto de columnas de texto; se conserva la ortografía real del nombre. |
+<!-- fin:personas -->
+
+<!-- inicio:categoricas -->
+### Categóricas: `sector`, `area`, `status`, `modalidad`, `jornada`, `plan` (limpiar_categoricas.py)
+
+| Variable | Problema detectado | Transformación | Registros afectados | Justificación |
+|---|---|---|---|---|
+| `sector` | 4 variantes de escritura observadas | Normalización (NFC, espacios, MAYÚSCULAS) + mapeo a set canónico (4 categorías): {COOPERATIVA, MUNICIPAL, OFICIAL, PRIVADO}. Fuera de catálogo → `REVISAR:` | 0 valores normalizados/unificados, 0 marcados REVISAR | Elimina categorías duplicadas por diferencias de escritura; el set canónico documenta el dominio permitido. |
+| `area` | 3 variantes de escritura observadas | Normalización (NFC, espacios, MAYÚSCULAS) + mapeo a set canónico (3 categorías): {RURAL, SIN ESPECIFICAR, URBANA}. Fuera de catálogo → `REVISAR:` | 0 valores normalizados/unificados, 0 marcados REVISAR | Elimina categorías duplicadas por diferencias de escritura; el set canónico documenta el dominio permitido. |
+| `status` | 5 variantes de escritura observadas | Normalización (NFC, espacios, MAYÚSCULAS) + mapeo a set canónico (5 categorías): {ABIERTA, CERRADA DEFINITIVAMENTE, CERRADA TEMPORALMENTE, TEMPORAL NOMBRAMIENTO, TEMPORAL TITULOS}. Fuera de catálogo → `REVISAR:` | 0 valores normalizados/unificados, 0 marcados REVISAR | Elimina categorías duplicadas por diferencias de escritura; el set canónico documenta el dominio permitido. |
+| `modalidad` | 2 variantes de escritura observadas | Normalización (NFC, espacios, MAYÚSCULAS) + mapeo a set canónico (2 categorías): {BILINGUE, MONOLINGUE}. Fuera de catálogo → `REVISAR:` | 0 valores normalizados/unificados, 0 marcados REVISAR | Elimina categorías duplicadas por diferencias de escritura; el set canónico documenta el dominio permitido. |
+| `jornada` | 6 variantes de escritura observadas | Normalización (NFC, espacios, MAYÚSCULAS) + mapeo a set canónico (6 categorías): {DOBLE, INTERMEDIA, MATUTINA, NOCTURNA, SIN JORNADA, VESPERTINA}. Fuera de catálogo → `REVISAR:` | 0 valores normalizados/unificados, 0 marcados REVISAR | Elimina categorías duplicadas por diferencias de escritura; el set canónico documenta el dominio permitido. |
+| `plan` | 13 variantes de escritura observadas | Normalización (NFC, espacios, MAYÚSCULAS) + mapeo a set canónico (13 categorías): {A DISTANCIA, DIARIO(REGULAR), DOMINICAL, FIN DE SEMANA, INTERCALADO, IRREGULAR, MIXTO, SABATINO, SEMIPRESENCIAL, SEMIPRESENCIAL (DOS DÍAS A LA SEMANA), SEMIPRESENCIAL (FIN DE SEMANA), SEMIPRESENCIAL (UN DÍA A LA SEMANA), VIRTUAL A DISTANCIA}. Fuera de catálogo → `REVISAR:` | 0 valores normalizados/unificados, 0 marcados REVISAR | Elimina categorías duplicadas por diferencias de escritura; el set canónico documenta el dominio permitido. |
+<!-- fin:categoricas -->
