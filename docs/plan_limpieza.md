@@ -1,3 +1,70 @@
+# Plan de limpieza — Nombre y dirección del establecimiento (Actividad 4)
+
+**Autor:** Esteban  
+**Variables:** `establecimiento`, `direccion`  
+**Fuente:** `datos/unido/establecimientos_diversificado_unido.csv` (11,867 × 19)
+
+---
+
+## 1. `establecimiento`
+
+### (a) Problema detectado
+- **1,396 registros** con espacios múltiples internos.
+- **5 valores vacíos** (cadena vacía); IDs afectados: `114`, `1814`, `3644`, `7592`, `9627`.
+- Posibles caracteres de control / no normalizados Unicode (NFC): 0 detectados en esta corrida, se verifica de forma defensiva.
+- **2,228 registros** con comillas dobles (ej. `COLEGIO "SANTA ANA"`) — no es un error, son parte del nombre propio.
+- Casing: dataset ya 100% en MAYÚSCULAS (0 registros en minúscula detectados).
+- Nombres parecidos pero distintos (ej. `AMERICA` vs `AMÉRICA`) — candidatos a duplicado parcial, no un problema de formato.
+
+### (b) Regla de corrección y justificación
+1. Preservar el original en `establecimiento_raw`.
+2. Normalizar a NFC, colapsar espacios múltiples a uno solo, `strip()`. Justificación: no cambia el contenido, solo el separador.
+3. Quitar caracteres de control invisibles (categoría Unicode `Cc`) de forma defensiva, sin tocar tildes/ñ.
+4. Valores vacíos → marcar `"NA"`. Justificación: no hay forma de inferir el nombre real de un establecimiento a partir de otras columnas; inventarlo sería peor que dejarlo faltante.
+5. `.upper()` defensivo (el dataset ya viene en MAYÚSCULAS). Se descarta Title Case por acrónimos con puntos (`C.E.T.A.CH.`) y numerales (`NO. 1`) — opción conservadora, cero riesgo.
+6. Comillas dobles y variantes con/sin tilde NO se autocorrigen: son parte del nombre propio o candidatos a duplicado parcial que requieren revisión manual (ver `detectar_duplicados` más abajo), no una corrección de formato segura.
+
+### (c) Riesgos
+- Marcar como `"NA"` un establecimiento sin nombre en la fuente pierde esa fila para búsquedas por nombre; se mitiga documentando los IDs afectados y preservando `establecimiento_raw`.
+- Corregir automáticamente nombres "parecidos" (fuzzy) arriesga fusionar centros educativos realmente distintos; por eso se deja para revisión manual vía `datos/interim/duplicados_parciales_revisar.csv` en lugar de fusionar aquí.
+
+---
+
+## 2. `direccion`
+
+### (a) Problema detectado
+- **485 registros** con espacios múltiples internos.
+- **89 valores vacíos o placeholders no informativos** (cadena vacía, `.`, `---`, `S/N`, etc.).
+- Abreviaturas inconsistentes en el vocabulario de direcciones: `AV`/`AV.` (405), `No`/`No.` (253), `COL`/`COL.` (25), `#` (23), `Z.` (11), `BO`/`BO.` (3).
+
+### (b) Regla de corrección y justificación
+1. Preservar el original en `direccion_raw`.
+2. Normalizar a NFC, colapsar espacios múltiples, `strip()`, quitar caracteres de control invisibles.
+3. Valores vacíos o placeholders no informativos → marcar `"NA"`. Justificación: no aportan información real de ubicación; inventar una dirección sería peor que dejarla faltante.
+4. Estandarizar abreviaturas a su forma completa (`AV`→`AVENIDA`, `COL`→`COLONIA`, `Z.`→`ZONA`, `BO`→`BARRIO`, `#`/`No`→`NO.`) con regex de límites de palabra (`\b`), para no romper palabras que las contengan. Justificación: uniformar el vocabulario para que sea comparable/buscable.
+5. `.upper()` — misma decisión que `establecimiento`, por consistencia entre columnas de texto del dataset.
+
+### (c) Riesgos
+- El diccionario de abreviaturas es explícito y usa límites de palabra para evitar falsos positivos (p. ej. no reemplazar dentro de una palabra que solo contenga "AV" como substring); una abreviatura ambigua no listada simplemente no se corrige.
+- Marcar placeholders como `"NA"` es conservador: el set de placeholders (`PLACEHOLDERS_EXACTOS`) es explícito para evitar borrar direcciones reales que casualmente sean cortas.
+
+---
+
+## Orden de aplicación (Esteban)
+
+```
+clean_establecimiento(df)   # normaliza formato + NA para vacíos
+clean_direccion(df)         # normaliza formato + NA para no informativos + abreviaturas estandarizadas
+...
+detectar_duplicados(df)     # al final del pipeline completo (generar_limpio.py): genera
+                             # datos/interim/duplicados_parciales_revisar.csv; no elimina filas
+```
+
+Cada función de limpieza es pura: recibe el DataFrame, devuelve una copia con `<var>_raw` + `<var>` limpiada; solo toca sus columnas. `detectar_duplicados` corre **después** de todas las limpiezas (incluidas las de Ernesto), porque agrupa candidatos por `departamento` + `municipio` ya limpios — ver `docs/transformaciones.md`.
+
+---
+---
+
 # Plan de limpieza — Variables geográficas y códigos (Actividad 4)
 
 **Autor:** Ernesto  

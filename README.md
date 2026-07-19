@@ -26,7 +26,25 @@ Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFI
 │   └── unir_datos.py     # une todos los CSV crudos en uno solo (sin limpiar ni deduplicar)
 ├── datos/
 │   ├── crudos/           # CSV crudos por departamento (se versiona)
-│   └── unido/            # CSV unido de todos los departamentos (no se versiona, es reproducible)
+│   ├── unido/            # CSV unido de todos los departamentos (no se versiona, es reproducible)
+│   ├── interim/          # diagnósticos y reportes intermedios (duplicados, faltantes, tipos, etc.)
+│   └── clean/            # CSV limpio y consolidado final (no se versiona, es reproducible)
+├── limpieza/              # funciones de limpieza por variable + orquestador del conjunto limpio
+│   ├── generar_limpio.py      # aplica todas las limpiezas y escribe datos/clean/*.csv
+│   ├── informe_calidad.py     # compara datos/unido/ (antes) vs. datos/clean/ (después)
+│   ├── limpiar_*.py           # una función pura de limpieza por variable o grupo de variables
+│   ├── duplicados.py          # detección de duplicados exactos y candidatos a duplicado parcial
+│   ├── catalogos.py           # catálogos oficiales (departamentos, municipios)
+│   └── reportes.py            # helper para actualizar docs/transformaciones.md
+├── docs/
+│   ├── plan_limpieza.md       # plan de limpieza por variable (problema, regla, riesgos)
+│   ├── transformaciones.md    # registro de transformaciones aplicadas, con conteos
+│   ├── libro_de_codigos.md    # Code Book: metadatos y dominio de cada variable
+│   └── informe_calidad.md     # informe de calidad antes/después (generado por informe_calidad.py)
+├── tests/
+│   └── test_validacion.py     # pruebas automáticas de calidad sobre el conjunto limpio
+├── notebooks/
+│   └── 01_diagnostico.ipynb   # diagnóstico exploratorio del estado inicial de los datos
 ├── requirements.txt      # dependencias del proyecto
 └── venv/                 # entorno virtual de Python (no se versiona)
 ```
