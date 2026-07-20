@@ -33,7 +33,8 @@ automatizacion/_descargas_tmp/
 datos/unido/
 
 # datos/clean/ NO se versiona: derivado 100% reproducible via limpieza/generar_limpio.py
-datos/clean/
+datos/clean/*
+!datos/clean/establecimientos_diversificado_limpio.csv
 
 # Variables de entorno / secretos
 .env
