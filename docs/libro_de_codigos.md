@@ -107,9 +107,153 @@ Cada variable se documenta con los siguientes campos:
 
 ---
 
-<!-- TODO Ernesto: codigo, codigo_raw, distrito, distrito_raw, departamento, departamento_raw,
-     municipio, municipio_raw, nivel, nivel_raw, departamental, departamental_raw
-     (reusar docs/transformaciones.md y docs/plan_limpieza.md) -->
+## Columnas de Ernesto
+
+### `departamento`
+
+- **Descripción:** Departamento de Guatemala en el que se ubica el establecimiento educativo.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Uno de los 22 departamentos oficiales del INE, en MAYÚSCULAS con tildes correctas; cualquier valor fuera de catálogo se marca con prefijo `REVISAR:`.
+- **Valores posibles:** 22 categorías (catálogo oficial INE, ver `limpieza/catalogos.py`).
+- **Tratamiento aplicado:** Fusión de `CIUDAD CAPITAL` (código 00) + `GUATEMALA` (código 01) → valor canónico `GUATEMALA` (2,161 registros fusionados), por ser un artefacto del selector de descarga y no una entidad administrativa distinta; normalización de tildes a la forma canónica del INE (2,025 registros, comparación sin tildes y valor guardado con tildes); `.upper()` defensivo; 0 valores fuera de catálogo. Ver `docs/transformaciones.md#departamento`.
+- **Variable derivada:** No — proviene directamente de la columna cruda `departamento`, normalizada y fusionada; el original queda en `departamento_raw`.
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `departamento_raw`
+
+- **Descripción:** Valor original de `departamento` tal como llegó de la fuente, sin fusión ni normalización.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Cualquier cadena; conserva `CIUDAD CAPITAL` y las variantes sin tildes (`PETEN`, `SOLOLA`, etc.).
+- **Valores posibles:** Misma cardinalidad que la columna cruda en el CSV unido (incluye `CIUDAD CAPITAL` como valor separado de `GUATEMALA`).
+- **Tratamiento aplicado:** Ninguno — se preserva sin modificar como respaldo/trazabilidad de `departamento` (permite auditar la fusión 00+01 y la normalización de tildes).
+- **Variable derivada:** Sí — copia literal de la columna `departamento` del CSV unido, insertada antes de aplicar la limpieza (`limpieza/limpiar_departamento.py`).
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `municipio`
+
+- **Descripción:** Municipio en el que se ubica el establecimiento educativo.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Uno de los ~340 municipios oficiales del INE, válido **para su departamento**, en MAYÚSCULAS con tildes correctas; sin match suficiente se marca con prefijo `REVISAR:`.
+- **Valores posibles:** ~340 municipios (catálogo oficial INE validado por departamento, ver `limpieza/catalogos.py`).
+- **Tratamiento aplicado:** Validación contra el catálogo filtrado por el `departamento` ya limpio: 11,858 registros con match exacto (sin tildes), 1 typo corregido con RapidFuzz (`token_sort_ratio ≥ 90`), 8 sin match marcados `REVISAR:` y exportados a `datos/interim/municipios_fuera_catalogo.csv`; valor canónico guardado con tildes y MAYÚSCULAS. Ver `docs/transformaciones.md#municipio`.
+- **Variable derivada:** No — proviene directamente de la columna cruda `municipio`, normalizada y validada; el original queda en `municipio_raw`.
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `municipio_raw`
+
+- **Descripción:** Valor original de `municipio` tal como llegó de la fuente, sin normalizar ni corregir.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Cualquier cadena, incluidos typos y variantes sin tildes.
+- **Valores posibles:** Misma cardinalidad que la columna cruda en el CSV unido (352 valores únicos observados).
+- **Tratamiento aplicado:** Ninguno — se preserva sin modificar; hace auditable cada corrección de typo (RapidFuzz) y cada valor marcado `REVISAR:`.
+- **Variable derivada:** Sí — copia literal de la columna `municipio` del CSV unido, insertada antes de aplicar la limpieza (`limpieza/limpiar_municipio.py`).
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `codigo`
+
+- **Descripción:** Código único del establecimiento educativo asignado por el MINEDUC.
+- **Tipo de dato:** Texto (string) — se mantiene como texto siempre para conservar los ceros a la izquierda (convertirlo a `int`/`float` los perdería).
+- **Dominio permitido:** Cadena que cumple el patrón `##-##-####-##` (`^\d{2}-\d{2}-\d{4}-\d{2}$`); cualquier valor fuera de patrón se marca con prefijo `REVISAR:`.
+- **Valores posibles:** 11,867 valores únicos (uno por registro); 0 inválidos en el dataset actual.
+- **Tratamiento aplicado:** `strip()` defensivo; verificación (assert) del patrón `##-##-####-##` sobre los 11,867 registros y de la unicidad (`nunique() == len(df)`); 0 inválidos y 0 duplicados detectados. Ver `docs/transformaciones.md#codigo`.
+- **Variable derivada:** No — proviene directamente de la columna cruda `codigo`; el original queda en `codigo_raw`.
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `codigo_raw`
+
+- **Descripción:** Valor original de `codigo` tal como llegó de la fuente.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Cualquier cadena, incluidos posibles espacios al inicio/fin.
+- **Valores posibles:** Misma cardinalidad que la columna cruda en el CSV unido (11,867 únicos).
+- **Tratamiento aplicado:** Ninguno — se preserva sin modificar como respaldo/trazabilidad de `codigo`.
+- **Variable derivada:** Sí — copia literal de la columna `codigo` del CSV unido, insertada antes de aplicar la limpieza (`limpieza/limpiar_codigo.py`).
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `distrito`
+
+- **Descripción:** Distrito escolar del establecimiento educativo, según la organización interna del MINEDUC.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Cadena con formato `##-###`; `"NA"` si no hay dato. No existe catálogo público oficial de distritos escolares, por lo que solo se valida el formato, no el contenido.
+- **Valores posibles:** Texto libre bajo el patrón `##-###`; no es una categórica cerrada verificable.
+- **Tratamiento aplicado:** `strip()` defensivo y normalización de formato; 532 valores vacíos → `"NA"`. No se corrige el contenido por falta de catálogo de referencia. Ver `docs/transformaciones.md#distrito_departamental_nivel`.
+- **Variable derivada:** No — proviene directamente de la columna cruda `distrito`; el original queda en `distrito_raw`.
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `distrito_raw`
+
+- **Descripción:** Valor original de `distrito` tal como llegó de la fuente.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Cualquier cadena, incluidos vacíos y variantes de formato (`01-`, `01-403`, etc.).
+- **Valores posibles:** Misma cardinalidad que la columna cruda en el CSV unido.
+- **Tratamiento aplicado:** Ninguno — se preserva sin modificar como respaldo/trazabilidad de `distrito`.
+- **Variable derivada:** Sí — copia literal de la columna `distrito` del CSV unido, insertada antes de aplicar la limpieza (`limpieza/limpiar_distrito_departamental_nivel.py`).
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `departamental`
+
+- **Descripción:** Dirección Departamental de Educación (DIDEDUC) del MINEDUC a la que pertenece el establecimiento.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Nombre de dirección departamental en MAYÚSCULAS con tildes correctas, consistente con el `departamento` limpio (o una de sus subdivisiones administrativas conocidas).
+- **Valores posibles:** 26 valores únicos — 22 departamentos más Guatemala subdividida en 4 zonas administrativas del MINEDUC (`GUATEMALA NORTE`, `GUATEMALA SUR`, `GUATEMALA ORIENTE`, `GUATEMALA OCCIDENTE`). La subdivisión es **intencional**, no un error.
+- **Tratamiento aplicado:** `strip()` + NFC + `.upper()` con tildes correctas; 0 cambios de caja detectados. Se documentan los 26 valores observados y su mapeo al departamento oficial. Ver `docs/transformaciones.md#distrito_departamental_nivel`.
+- **Variable derivada:** No — proviene directamente de la columna cruda `departamental`; el original queda en `departamental_raw`.
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `departamental_raw`
+
+- **Descripción:** Valor original de `departamental` tal como llegó de la fuente.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Cualquier cadena, incluidas posibles variantes de escritura.
+- **Valores posibles:** Misma cardinalidad que la columna cruda en el CSV unido (26 valores únicos observados).
+- **Tratamiento aplicado:** Ninguno — se preserva sin modificar como respaldo/trazabilidad de `departamental`.
+- **Variable derivada:** Sí — copia literal de la columna `departamental` del CSV unido, insertada antes de aplicar la limpieza (`limpieza/limpiar_distrito_departamental_nivel.py`).
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `nivel`
+
+- **Descripción:** Nivel escolar del establecimiento educativo.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Un único valor: `DIVERSIFICADO` (el dataset se filtró por este nivel en la descarga).
+- **Valores posibles:** 1 categoría — `DIVERSIFICADO`.
+- **Tratamiento aplicado:** Verificación (assert) de que `nivel.nunique() == 1` y `nivel == "DIVERSIFICADO"` en los 11,867 registros; 0 anomalías. No se modifica el valor. Ver `docs/transformaciones.md#distrito_departamental_nivel`.
+- **Variable derivada:** No — proviene directamente de la columna cruda `nivel`; el original queda en `nivel_raw`.
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+### `nivel_raw`
+
+- **Descripción:** Valor original de `nivel` tal como llegó de la fuente.
+- **Tipo de dato:** Texto (string).
+- **Dominio permitido:** Cualquier cadena (defensivo; en la práctica siempre `DIVERSIFICADO`).
+- **Valores posibles:** Misma cardinalidad que la columna cruda en el CSV unido (1 valor único observado).
+- **Tratamiento aplicado:** Ninguno — se preserva sin modificar como respaldo/trazabilidad de `nivel` (defensivo por si una futura descarga incluyera otro nivel).
+- **Variable derivada:** Sí — copia literal de la columna `nivel` del CSV unido, insertada antes de aplicar la limpieza (`limpieza/limpiar_distrito_departamental_nivel.py`).
+- **Fecha de extracción:** 2026-07-12.
+- **Fuente:** Buscador de establecimientos del MINEDUC.
+- **Versión:** v1.0.
+
+---
 
 ## Columnas de Hugo
 
