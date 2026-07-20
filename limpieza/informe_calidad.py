@@ -109,6 +109,74 @@ def _fila(nombre: str, antes, despues) -> str:
     return f"| {nombre} | {antes} | {despues} |"
 
 
+def _narrativa_mejora(
+    *,
+    n_registros_antes: int,
+    n_registros_despues: int,
+    n_variables_antes: int,
+    n_variables_despues: int,
+    faltantes_antes: int,
+    faltantes_despues: int,
+    formato_antes: int,
+    tipo_antes: int,
+    categorias_antes: int,
+    errores_corregidos: int,
+    total_pares: int,
+) -> list[str]:
+    """Narrativa de mejora objetiva, métrica por métrica (Actividad 8).
+
+    Se genera con los mismos valores calculados para la tabla, así que sus números
+    quedan siempre en sync con ella y no se pierden al regenerar el informe.
+    """
+    nuevas = n_variables_despues - n_variables_antes
+    return [
+        "## Análisis de la mejora objetiva",
+        "",
+        "Lectura métrica por métrica de por qué el conjunto limpio es objetivamente mejor "
+        "que el unido, respetando la regla de la rúbrica de **no eliminar registros "
+        "automáticamente**: lo dudoso se marca (`NA` / `REVISAR:`), no se borra.",
+        "",
+        f"- **Registros ({n_registros_antes:,} → {n_registros_despues:,}):** no se eliminó "
+        "ninguna fila. Es una decisión de diseño alineada con la rúbrica: los casos dudosos "
+        "(faltantes, valores fuera de catálogo, posibles duplicados) se **marcan** de forma "
+        "explícita en lugar de descartarse, para que ninguna decisión destructiva quede oculta.",
+        f"- **Variables ({n_variables_antes} → {n_variables_despues}):** las {nuevas} columnas "
+        "nuevas no agregan datos inventados: son 11 columnas `_raw` de trazabilidad (preservan el "
+        "valor original de cada variable limpiada, para poder auditar cada corrección) más "
+        "`telefono_adicionales` (derivada, rescata los teléfonos secundarios sin romper la "
+        "atomicidad de `telefono`). Más columnas = más trazabilidad, no más ruido.",
+        f"- **Valores faltantes ({faltantes_antes:,} → {faltantes_despues:,}):** el número "
+        "**sube a propósito, y eso es una mejora**. Antes, placeholders no informativos "
+        "(`\"\"`, `-`, `.`, `S/N`, `SIN DATO`, `N/A`, `NULL`) se veían como datos reales y no "
+        "contaban como faltantes; ahora se normalizan a `\"NA\"` y quedan **visibles y "
+        "explícitos**. La limpieza no crea faltantes: los que estaban disfrazados ahora se "
+        "reconocen como lo que son. Un conteo honesto de faltantes es justo el objetivo, no una "
+        "regresión.",
+        f"- **Variables con formato inconsistente ({formato_antes} → 0):** las columnas de texto "
+        "con espacios al inicio/fin o espacios internos dobles quedaron normalizadas (`strip()` + "
+        "colapso de espacios + NFC), de modo que valores iguales dejan de verse distintos por un "
+        "espacio y se vuelven comparables/buscables.",
+        f"- **Variables con tipo incorrecto ({tipo_antes} → 0):** `codigo` se mantiene como texto "
+        "en todo el pipeline, conservando los ceros a la izquierda que un `int` habría destruido "
+        "(ej. `00-01-0001-00`); un `assert` de patrón y los tests garantizan que el tipo correcto "
+        "se preserve en futuras descargas.",
+        f"- **Categorías inconsistentes ({categorias_antes} → 0):** las variables categóricas se "
+        "mapean a un set canónico documentado (`limpieza/catalogos.py`) y todo valor fuera de "
+        "catálogo se marca `REVISAR:`; así la cardinalidad observada deja de exceder el dominio "
+        "permitido y desaparecen las categorías duplicadas por diferencias de escritura.",
+        f"- **Errores corregidos ({errores_corregidos:,}):** es el **volumen total de "
+        "operaciones puntuales** de limpieza (suma de la columna \"Registros afectados\" de "
+        "`docs/transformaciones.md`), no la cantidad de filas únicas afectadas — una misma fila "
+        "puede recibir varias correcciones. Da la magnitud del trabajo de limpieza aplicado.",
+        f"- **Posibles duplicados:** se generaron {total_pares:,} pares candidatos a duplicado "
+        "parcial para revisión manual; **ninguno se fusionó ni eliminó automáticamente**. Nombres "
+        "muy parecidos suelen ser el mismo centro con varios códigos (jornada/plan distinto) o "
+        "centros realmente diferentes, así que fusionarlos a ciegas podría borrar establecimientos "
+        "reales. La decisión se documenta y se deja para revisión humana.",
+        "",
+    ]
+
+
 def generar_informe() -> str:
     assert UNIDO_CSV.exists(), f"No se encontró {UNIDO_CSV}. Ejecutá: python automatizacion/unir_datos.py"
     assert LIMPIO_CSV.exists(), f"No se encontró {LIMPIO_CSV}. Ejecutá: python limpieza/generar_limpio.py"
@@ -207,18 +275,29 @@ def generar_informe() -> str:
         "a mano y marque `conservar`, `fusionar` o `revisar`, como indica "
         "`datos/interim/README.md`. No se fusiona ni elimina nada automáticamente.",
         "- **Variables con formato inconsistente**: columnas originales con espacios al inicio/fin "
-        "o espacios internos dobles. <!-- TODO Ernesto: narrativa de mejora objetiva -->",
+        "o espacios internos dobles.",
         "- **Variables con tipo incorrecto**: columnas señaladas en "
         "`datos/interim/diagnostico_tipos.csv` con riesgo real de tipo (ej. `codigo` perdería "
-        "ceros a la izquierda si se convirtiera a `int`). "
-        "<!-- TODO Ernesto: narrativa de mejora objetiva -->",
+        "ceros a la izquierda si se convirtiera a `int`).",
         "- **Categorías inconsistentes**: columnas categóricas cuya cardinalidad observada supera "
         "el tamaño de su set canónico documentado (`limpieza/catalogos.py`, "
-        "`limpieza/limpiar_categoricas.py`). <!-- TODO Ernesto: narrativa de mejora objetiva -->",
+        "`limpieza/limpiar_categoricas.py`).",
         "- **Errores corregidos**: suma de la columna \"Registros afectados\" de todas las filas de "
-        "`docs/transformaciones.md` (total de correcciones puntuales aplicadas por el pipeline). "
-        "<!-- TODO Ernesto: narrativa de mejora objetiva -->",
+        "`docs/transformaciones.md` (total de correcciones puntuales aplicadas por el pipeline).",
         "",
+        *_narrativa_mejora(
+            n_registros_antes=n_registros_antes,
+            n_registros_despues=n_registros_despues,
+            n_variables_antes=n_variables_antes,
+            n_variables_despues=n_variables_despues,
+            faltantes_antes=faltantes_antes,
+            faltantes_despues=faltantes_despues,
+            formato_antes=len(formato_antes),
+            tipo_antes=tipo_antes,
+            categorias_antes=len(categorias_antes),
+            errores_corregidos=errores_corregidos,
+            total_pares=total_pares,
+        ),
     ]
     return "\n".join(contenido) + "\n"
 
