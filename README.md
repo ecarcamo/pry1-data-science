@@ -4,17 +4,11 @@ Proyecto 1 del curso **CC3084 – Data Science** (Universidad del Valle de Guate
 
 ## Contexto del proyecto
 
-El objetivo es tomar una fuente de datos real, obtenerla, diagnosticar su calidad y limpiarla de forma transparente y reproducible. La fuente utilizada es el buscador público del Ministerio de Educación de Guatemala (MINEDUC), que expone los centros educativos autorizados en todo el país:
+El objetivo del proyecto es tomar una fuente de datos real, obtenerla, diagnosticar su calidad y limpiarla de forma transparente y reproducible. La fuente que usamos es el buscador público del Ministerio de Educación de Guatemala (MINEDUC), que expone los centros educativos autorizados en todo el país:
 
 http://www.mineduc.gob.gt/BUSCAESTABLECIMIENTO_GE/
 
-Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFICADO**, para los 23 departamentos del país. Con esos datos crudos se hace luego:
-
-- un diagnóstico del estado inicial de los datos (tipos, faltantes, duplicados, inconsistencias, etc.),
-- un plan y proceso de limpieza documentado y reproducible,
-- pruebas automáticas de calidad sobre el conjunto limpio,
-- un Libro de Códigos (Code Book) con los metadatos de cada variable,
-- un conjunto de datos único, limpio y consolidado de todos los departamentos.
+Descargamos los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFICADO**, para los 23 departamentos del país. Con esos datos crudos se hace luego un diagnóstico del estado inicial de los datos (tipos, faltantes, duplicados, inconsistencias, etc.), un plan y proceso de limpieza documentado y reproducible, pruebas automáticas de calidad sobre el conjunto limpio, un Libro de Códigos (Code Book) con los metadatos de cada variable, y finalmente un conjunto de datos único, limpio y consolidado de todos los departamentos.
 
 ## Estructura del repositorio
 
@@ -52,9 +46,9 @@ Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFI
 
 ## Obtención de los datos (web scraping)
 
-Los datos se descargan automáticamente con Selenium desde el buscador del MINEDUC. Por cada uno de los 23 departamentos, se deja Municipio/Sector/Plan/Modalidad en "TODOS" y el Nivel Escolar en "DIVERSIFICADO", se ejecuta la búsqueda y se guarda el resultado como un `.csv` en `datos/crudos/`.
+Los datos se descargan automáticamente con Selenium desde el buscador del MINEDUC. Por cada uno de los 23 departamentos se deja Municipio/Sector/Plan/Modalidad en "TODOS" y el Nivel Escolar en "DIVERSIFICADO", se ejecuta la búsqueda y se guarda el resultado como un `.csv` en `datos/crudos/`.
 
-> **Nota:** el botón "Exportar a Excel" del sitio tiene un bug del lado del servidor (siempre devuelve una página de error de ASP.NET en vez del archivo, sin importar el departamento o filtro elegido). Por eso `descarga.py` no depende de ese botón: extrae los datos directamente de la tabla de resultados que renderiza la página, lo cual es igual de confiable y entrega el `.csv` que pide el proyecto.
+> **Nota:** el botón "Exportar a Excel" del sitio tiene un bug del lado del servidor: siempre devuelve una página de error de ASP.NET en vez del archivo, sin importar el departamento o filtro elegido. Por eso `descarga.py` no depende de ese botón. Extrae los datos directamente de la tabla de resultados que renderiza la página, algo igual de confiable, y entrega el `.csv` que pide el proyecto.
 
 ### Requisitos previos
 
@@ -92,14 +86,11 @@ Esto muestra un menú con 4 opciones:
 4) Salir
 ```
 
-- **Opción 1 — Solo descargar:** pregunta si correr Chrome en modo headless, qué departamentos correr (Enter = todos los 23) y cuántos reintentos por departamento, y luego descarga solo eso a `datos/crudos/`.
-- **Opción 2 — Unir la data descargada:** llama a `unir_datos.py` sobre lo que ya haya en `datos/crudos/`. Si la carpeta no existe o está vacía, avisa que hace falta descargar primero (opción 1 o 3) y no hace nada más.
-- **Opción 3 — Pipeline completo:** descarga los 23 departamentos y, si al menos uno tuvo éxito, une automáticamente el resultado.
-- **Opción 4 — Salir.**
+La opción 1, solo descargar, pregunta si correr Chrome en modo headless, qué departamentos correr (Enter equivale a todos los 23) y cuántos reintentos por departamento, y luego descarga solo eso a `datos/crudos/`. La opción 2, unir la data descargada, llama a `unir_datos.py` sobre lo que ya haya en `datos/crudos/`; si la carpeta no existe o está vacía, avisa que hace falta descargar primero (opción 1 o 3) y no hace nada más. La opción 3, pipeline completo, descarga los 23 departamentos y, si al menos uno tuvo éxito, une automáticamente el resultado. La opción 4 simplemente sale.
 
 ### Uso directo de los módulos (sin menú)
 
-`descarga.py` y `unir_datos.py` también se pueden correr por separado, útil para pruebas o para automatizar sin el menú:
+`descarga.py` y `unir_datos.py` también se pueden correr por separado, algo útil para pruebas o para automatizar sin el menú:
 
 ```bash
 cd automatizacion
@@ -126,14 +117,9 @@ El progreso se registra en `automatizacion/scraper.log` y también se imprime en
 
 ### Unión de los datos crudos
 
-`unir_datos.py` (invocado desde el menú o directamente):
+`unir_datos.py` (invocado desde el menú o directamente) toma todos los archivos `establecimientos_diversificado_*.csv` que haya en `datos/crudos/`, no solo los de la última corrida. Valida que todos tengan exactamente las mismas 17 columnas (mismo nombre y orden); si alguno difiere, aborta con un error indicando cuál archivo y qué columnas cambian. Luego los concatena en un único CSV en `datos/unido/establecimientos_diversificado_unido.csv` y verifica que el total de filas del unido sea exactamente la suma de filas de los archivos individuales (si no cuadra, aborta).
 
-- toma **todos** los archivos `establecimientos_diversificado_*.csv` que haya en `datos/crudos/` (no solo los de la última corrida),
-- valida que todos tengan exactamente las mismas 17 columnas (mismo nombre y orden); si alguno difiere, aborta con un error indicando cuál archivo y qué columnas cambian,
-- los concatena en un único CSV en `datos/unido/establecimientos_diversificado_unido.csv`,
-- verifica que el total de filas del unido sea exactamente la suma de filas de los archivos individuales (si no cuadra, aborta).
-
-Esta unión es **fiel**: no limpia, no normaliza mayúsculas/tildes/teléfonos ni elimina duplicados — eso corresponde a una fase posterior de limpieza sobre este archivo unido. Se agregan únicamente dos columnas derivadas para trazabilidad:
+Esta unión es fiel: no limpia, no normaliza mayúsculas/tildes/teléfonos ni elimina duplicados, eso corresponde a una fase posterior de limpieza sobre este archivo unido. Se agregan únicamente dos columnas derivadas para trazabilidad:
 
 | Columna | Descripción |
 |---|---|
@@ -158,7 +144,7 @@ Con el conjunto unido ya generado en `datos/unido/`, se corre el orquestador de 
 python limpieza/generar_limpio.py
 ```
 
-Esto aplica en orden **todas** las funciones `clean_<variable>` del paquete `limpieza/` (una por variable o grupo de variables — establecimiento, dirección, geográficas/códigos, teléfono, personas, categóricas), preservando siempre el valor original en una columna con sufijo `_raw` y sin eliminar ninguna fila. También corre la detección de duplicados (`limpieza/duplicados.py`), que documenta los duplicados exactos encontrados y genera el reporte de candidatos a duplicado parcial en `datos/interim/duplicados_parciales_revisar.csv` (similitud RapidFuzz, sin fusionar ni eliminar nada automáticamente).
+Esto aplica en orden todas las funciones `clean_<variable>` del paquete `limpieza/` (una por variable o grupo de variables: establecimiento, dirección, geográficas/códigos, teléfono, personas, categóricas), preservando siempre el valor original en una columna con sufijo `_raw` y sin eliminar ninguna fila. También corre la detección de duplicados (`limpieza/duplicados.py`), que documenta los duplicados exactos encontrados y genera el reporte de candidatos a duplicado parcial en `datos/interim/duplicados_parciales_revisar.csv` (similitud RapidFuzz, sin fusionar ni eliminar nada automáticamente).
 
 El resultado queda en:
 
@@ -174,7 +160,7 @@ Cada transformación aplicada (variable, problema detectado, transformación, re
 pytest tests/test_validacion.py -v
 ```
 
-13 pruebas que verifican, entre otras cosas: ausencia de duplicados exactos, ausencia de espacios al inicio/fin de textos, formato consistente de teléfonos (`telefono` y `telefono_adicionales`), que `departamento` y `municipio` pertenezcan al catálogo oficial del INE, que `codigo` cumpla su patrón y se mantenga como texto, que `nivel` sea únicamente `"DIVERSIFICADO"`, ausencia de categorías duplicadas por diferencias de escritura, que las variables categóricas estén dentro de su dominio permitido, y que los nombres de personas (`director`/`supervisor`) estén normalizados.
+Son 13 pruebas que verifican, entre otras cosas: ausencia de duplicados exactos, ausencia de espacios al inicio/fin de textos, formato consistente de teléfonos (`telefono` y `telefono_adicionales`), que `departamento` y `municipio` pertenezcan al catálogo oficial del INE, que `codigo` cumpla su patrón y se mantenga como texto, que `nivel` sea únicamente `"DIVERSIFICADO"`, ausencia de categorías duplicadas por diferencias de escritura, que las variables categóricas estén dentro de su dominio permitido, y que los nombres de personas (`director`/`supervisor`) estén normalizados.
 
 ### Informe de calidad (antes/después)
 
@@ -182,7 +168,7 @@ pytest tests/test_validacion.py -v
 python limpieza/informe_calidad.py
 ```
 
-Compara `datos/unido/establecimientos_diversificado_unido.csv` (ANTES) contra `datos/clean/establecimientos_diversificado_limpio.csv` (DESPUÉS) y escribe `docs/informe_calidad.md` con las métricas de calidad de la rúbrica (registros, variables, valores faltantes, duplicados exactos y posibles, variables con formato/tipo inconsistente, categorías inconsistentes y errores corregidos). Es reproducible: se puede correr las veces que haga falta y siempre sobrescribe el mismo archivo con datos frescos.
+Compara `datos/unido/establecimientos_diversificado_unido.csv` (ANTES) contra `datos/clean/establecimientos_diversificado_limpio.csv` (DESPUÉS) y escribe `docs/informe_calidad.md` con las métricas de calidad de la rúbrica (registros, variables, valores faltantes, duplicados exactos y posibles, variables con formato/tipo inconsistente, categorías inconsistentes y errores corregidos). Es reproducible, se puede correr las veces que haga falta y siempre sobrescribe el mismo archivo con datos frescos.
 
 ## Libro de códigos
 

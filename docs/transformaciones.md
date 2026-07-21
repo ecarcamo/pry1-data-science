@@ -1,6 +1,6 @@
 # Registro de transformaciones
 
-Registro compartido de las operaciones de limpieza aplicadas sobre `datos/unido/establecimientos_diversificado_unido.csv`. Cada sección la genera el script correspondiente; no editar a mano el contenido entre `<!-- inicio:... -->` / `<!-- fin:... -->`.
+Este es el registro compartido de las operaciones de limpieza aplicadas sobre `datos/unido/establecimientos_diversificado_unido.csv`. Cada sección la genera el script correspondiente, así que no se debe editar a mano el contenido entre `<!-- inicio:... -->` / `<!-- fin:... -->`.
 
 <!-- inicio:establecimiento -->
 ### `establecimiento` (limpiar_establecimiento.py)
