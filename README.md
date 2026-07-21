@@ -8,7 +8,7 @@ El objetivo es tomar una fuente de datos real, obtenerla, diagnosticar su calida
 
 http://www.mineduc.gob.gt/BUSCAESTABLECIMIENTO_GE/
 
-Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFICADO**, para los 23 departamentos del país. Con esos datos crudos se hará luego:
+Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFICADO**, para los 23 departamentos del país. Con esos datos crudos se hace luego:
 
 - un diagnóstico del estado inicial de los datos (tipos, faltantes, duplicados, inconsistencias, etc.),
 - un plan y proceso de limpieza documentado y reproducible,
@@ -28,7 +28,7 @@ Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFI
 │   ├── crudos/           # CSV crudos por departamento (se versiona)
 │   ├── unido/            # CSV unido de todos los departamentos (no se versiona, es reproducible)
 │   ├── interim/          # diagnósticos y reportes intermedios (duplicados, faltantes, tipos, etc.)
-│   └── clean/            # CSV limpio y consolidado final (no se versiona, es reproducible)
+│   └── clean/            # CSV limpio y consolidado final (se versiona para la entrega)
 ├── limpieza/              # funciones de limpieza por variable + orquestador del conjunto limpio
 │   ├── generar_limpio.py      # aplica todas las limpiezas y escribe datos/clean/*.csv
 │   ├── informe_calidad.py     # compara datos/unido/ (antes) vs. datos/clean/ (después)
@@ -40,6 +40,7 @@ Se descargan los establecimientos que llegan hasta el **Nivel Escolar: DIVERSIFI
 │   ├── plan_limpieza.md       # plan de limpieza por variable (problema, regla, riesgos)
 │   ├── transformaciones.md    # registro de transformaciones aplicadas, con conteos
 │   ├── libro_de_codigos.md    # Code Book: metadatos y dominio de cada variable
+│   ├── libro_de_codigos.pdf   # Code Book exportado a PDF
 │   └── informe_calidad.md     # informe de calidad antes/después (generado por informe_calidad.py)
 ├── tests/
 │   └── test_validacion.py     # pruebas automáticas de calidad sobre el conjunto limpio
@@ -138,3 +139,85 @@ Esta unión es **fiel**: no limpia, no normaliza mayúsculas/tildes/teléfonos n
 |---|---|
 | `archivo_origen` | Nombre del CSV crudo del que vino cada fila (para rastrear su departamento de origen). |
 | `id_registro` | Entero incremental estable (1..N), asignado después de ordenar y concatenar, para poder referenciar cada fila en fases posteriores sin depender del índice de pandas. |
+
+## Diagnóstico del estado inicial
+
+Antes de limpiar, el estado crudo del conjunto unido se analiza en `notebooks/01_diagnostico.ipynb` (shape, tipos de dato, faltantes, valores únicos, duplicados exactos, valores fuera de dominio y formatos inconsistentes). Para reproducirlo:
+
+```bash
+jupyter notebook notebooks/01_diagnostico.ipynb
+```
+
+El notebook lee `datos/unido/establecimientos_diversificado_unido.csv` y escribe las tablas de respaldo en `datos/interim/` (`diagnostico_resumen.csv`, `diagnostico_faltantes.csv`, `diagnostico_tipos.csv`, `diagnostico_unicos.csv`, `diagnostico_fuera_dominio.csv`), que son la base del plan de limpieza en `docs/plan_limpieza.md`.
+
+## Limpieza y generación del conjunto final
+
+Con el conjunto unido ya generado en `datos/unido/`, se corre el orquestador de limpieza:
+
+```bash
+python limpieza/generar_limpio.py
+```
+
+Esto aplica en orden **todas** las funciones `clean_<variable>` del paquete `limpieza/` (una por variable o grupo de variables — establecimiento, dirección, geográficas/códigos, teléfono, personas, categóricas), preservando siempre el valor original en una columna con sufijo `_raw` y sin eliminar ninguna fila. También corre la detección de duplicados (`limpieza/duplicados.py`), que documenta los duplicados exactos encontrados y genera el reporte de candidatos a duplicado parcial en `datos/interim/duplicados_parciales_revisar.csv` (similitud RapidFuzz, sin fusionar ni eliminar nada automáticamente).
+
+El resultado queda en:
+
+```
+datos/clean/establecimientos_diversificado_limpio.csv
+```
+
+Cada transformación aplicada (variable, problema detectado, transformación, registros afectados, justificación) queda documentada en `docs/transformaciones.md`.
+
+### Validación automática
+
+```bash
+pytest tests/test_validacion.py -v
+```
+
+13 pruebas que verifican, entre otras cosas: ausencia de duplicados exactos, ausencia de espacios al inicio/fin de textos, formato consistente de teléfonos (`telefono` y `telefono_adicionales`), que `departamento` y `municipio` pertenezcan al catálogo oficial del INE, que `codigo` cumpla su patrón y se mantenga como texto, que `nivel` sea únicamente `"DIVERSIFICADO"`, ausencia de categorías duplicadas por diferencias de escritura, que las variables categóricas estén dentro de su dominio permitido, y que los nombres de personas (`director`/`supervisor`) estén normalizados.
+
+### Informe de calidad (antes/después)
+
+```bash
+python limpieza/informe_calidad.py
+```
+
+Compara `datos/unido/establecimientos_diversificado_unido.csv` (ANTES) contra `datos/clean/establecimientos_diversificado_limpio.csv` (DESPUÉS) y escribe `docs/informe_calidad.md` con las métricas de calidad de la rúbrica (registros, variables, valores faltantes, duplicados exactos y posibles, variables con formato/tipo inconsistente, categorías inconsistentes y errores corregidos). Es reproducible: se puede correr las veces que haga falta y siempre sobrescribe el mismo archivo con datos frescos.
+
+## Libro de códigos
+
+El Code Book completo, con la descripción, tipo de dato, dominio, tratamiento aplicado y metadatos de cada una de las 31 columnas del conjunto limpio, está en:
+
+- `docs/libro_de_codigos.md` (fuente, editable)
+- `docs/libro_de_codigos.pdf` (versión de entrega)
+
+## Pipeline completo, de punta a punta
+
+Para replicar todo el proceso desde cero, en orden:
+
+```bash
+# 1. Entorno
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Obtención (requiere Chrome/chromedriver)
+cd automatizacion
+python descarga.py --headless
+python unir_datos.py
+cd ..
+
+# 3. Diagnóstico (opcional, exploratorio)
+jupyter notebook notebooks/01_diagnostico.ipynb
+
+# 4. Limpieza y conjunto final
+python limpieza/generar_limpio.py
+
+# 5. Validación
+pytest tests/test_validacion.py -v
+
+# 6. Informe de calidad
+python limpieza/informe_calidad.py
+```
+
+Al finalizar, el conjunto de datos limpio queda en `datos/clean/establecimientos_diversificado_limpio.csv`, la validación en verde confirma que cumple las reglas de calidad, y `docs/informe_calidad.md` documenta objetivamente la mejora obtenida frente al estado crudo.
